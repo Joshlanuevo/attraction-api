@@ -83,26 +83,6 @@ export async function getTransactionData(transactionId: string): Promise<any> {
     }
 }
 
-/**
- * Removes a booking from the ferry_bookings collection
- */
-export async function removeFromBookings(bookingId: string): Promise<boolean> {
-    console.log('[removeFromBookings] Attempting to remove booking with ID:', bookingId);
-    try {
-        await db
-            .collection(FirebaseCollections.ferry_bookings)
-            .doc(bookingId)
-            .delete();
-
-        console.log('[removeFromBookings] Booking removed successfully.');
-
-        return true;
-    } catch (error) {
-        console.error('[removeFromBookings] Error removing booking:', error);
-        return false;
-    }
-}
-
 // In-memory cache for currency exchange rates
 const currencyRateCache = {
     store: new Map<string, { value: number, expiry: number }>(),

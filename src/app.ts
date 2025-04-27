@@ -73,7 +73,6 @@ app.use(errorHandler.errorLogger);
 
 declare module 'express-session' {
   interface SessionData {
-    ferryComputeCharges?: any;
     user?: {
       id: string;
       agentId: string;
