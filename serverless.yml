@@ -1,0 +1,51 @@
+service: attractions-api
+frameworkVersion: '4.4.19'
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: ap-southeast-1
+  timeout: 120
+  iamRoleStatements:
+  - Effect: Allow
+    Action:
+      - dynamodb:*
+    Resource:
+      - !GetAtt SessionsTable.Arn
+
+functions:
+  api:
+    handler: src/lambda.handler
+    events:
+      - http:
+          path: /
+          method: ANY
+          cors: true
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+
+resources:
+  Resources:
+    SessionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: attraction-api-sessions
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: expires
+          Enabled: true
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000

@@ -1,0 +1,35 @@
+export interface RawProductOption {
+    id: number | string;
+    name: string;
+    description?: string;
+    termsAndConditions?: string;
+    image?: string;
+    currency?: string;
+    publishStart?: string;
+    publishEnd?: string;
+    redeemStart?: string;
+    redeemEnd?: string;
+    ticketValidity?: string;
+    ticketFormat?: string;
+    definedDuration?: number | string;
+    isFavorited?: boolean;
+    fromReseller?: boolean;
+    isCapacity?: boolean;
+    timeSlot?: any;
+    sourceName?: string;
+    sourceTitle?: string;
+    advanceBooking?: any;
+    visitDate?: any;
+    questions?: any[];
+    howToUse?: string[];
+    inclusions?: string[];
+    exclusions?: string[];
+    tourInformation?: string[];
+    isCancellable?: boolean;
+    cancellationPolicy?: string;
+    cancellationNotes?: string[];
+    type?: string;
+    demandType?: string;
+    ticketType?: any[];
+    keywords?: string | null;
+}

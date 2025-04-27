@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Approval Request</title>
+	</head>
+	<body>
+		<table
+			width="100%"
+			cellspacing="0"
+			cellpadding="0"
+			style="border-collapse: collapse"
+		>
+			<tr>
+				<td>
+					<table
+						align="center"
+						width="600"
+						cellspacing="0"
+						cellpadding="0"
+						style="border-collapse: collapse; margin: 0 auto"
+					>
+						<!-- Header with Logo and Brand Name -->
+						<tr>
+							<td
+								style="
+									background-color: #f8f8f8;
+									padding: 10px;
+									text-align: center;
+									border-bottom: 2px solid #eaeaea;
+								"
+							>
+								<img
+									src="{{logo}}"
+									alt="Brand Logo"
+									height="50"
+									style="vertical-align: middle"
+								/>
+								<span
+									style="
+										font-size: 24px;
+										color: #333;
+										margin-left: 10px;
+										vertical-align: middle;
+									"
+									>{{company_name}}</span
+								>
+							</td>
+						</tr>
+
+						<!-- Email Body -->
+						<tr>
+							<td
+								style="padding: 20px; background-color: #ffffff"
+							>
+								<p style="font-size: 16px; color: #333">
+									Hi {{approver_name}},
+								</p>
+
+								<p style="font-size: 16px; color: #333">
+									{{applicant_name}} (ID: {{applicant_id}}) is requesting
+									{{amount_requested}} for the following:
+								</p>
+
+								<table
+									width="100%"
+									cellspacing="0"
+									cellpadding="0"
+									style="border-collapse: collapse"
+								>
+									{{details_table}}
+								</table>
+                                <p style="text-align: center; margin-top: 20px">
+                                    <a style="color:rgb(253, 13, 125)">This request expires in 15 minutes.</a>
+                                </p>
+								<p style="text-align: center; margin-top: 20px">
+									<a
+										href="{{approval_link}}"
+										target="_blank"
+										style="
+											background-color: #0d6efd;
+											color: #ffffff;
+											padding: 10px 20px;
+											text-decoration: none;
+											border-radius: 5px;
+											display: inline-block;
+										"
+										>Approve Request</a
+									>
+									<a
+										href="{{reject_link}}"
+										target="_blank"
+										style="
+											background-color: rgb(253, 13, 125);
+											color: #ffffff;
+											padding: 10px 20px;
+											text-decoration: none;
+											border-radius: 5px;
+											display: inline-block;
+										"
+										>Reject Request</a
+									>
+								</p>
+                                <p style="text-align: center; margin-top: 20px">
+                                    <p>Or click the link to Approve: <a href="{{approval_link}}" target="_blank">{{approval_link}}</a></p>
+                                </p>
+                                <p style="text-align: center; margin-top: 20px">
+                                    <p>Or click the link to Reject: <a href="{{reject_link}}" target="_blank">{{reject_link}}</a></p>
+                                </p>
+                                <!--<p style="text-align: center; margin-top: 20px">
+                                    Another option is to provide the OTP code below to {{applicant_name}} (ID: {{applicant_id}}) to approvethe request.
+                                    <span style="font-weight: 900; font-size: larger;">{{otp}}</span>
+                                </p>-->
+							</td>
+						</tr>
+
+						<!-- Footer with Contact Info -->
+						<tr>
+							<td
+								style="
+									background-color: #f8f8f8;
+									padding: 10px;
+									text-align: center;
+									border-top: 2px solid #eaeaea;
+								"
+							>
+								<p
+									style="
+										font-size: 14px;
+										color: #666;
+										margin: 0;
+									"
+								>
+									{{company_address}}
+                                    <br />
+									Phone: {{company_phone}} | Email:
+									{{company_email}}
+								</p>
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
