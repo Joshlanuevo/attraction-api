@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
-import AWS from 'aws-sdk';
 import { htmlToText } from 'html-to-text';
-import MimeNode from 'nodemailer/lib/mime-node';
-import * as nodemailer from 'nodemailer';
-import MailComposer from 'nodemailer/lib/mail-composer';
+import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
+import { unhash } from '../utils/cryptoUtil';
+
+dotenv.config();
 
 interface SendEmailOptions {
     html_body: string;
@@ -21,13 +21,13 @@ interface EmailResultSuccess {
     data: string;
     email: string[];
     subject: string;
-    result: AWS.SES.SendRawEmailResponse;
+    result: any;
 }
   
 interface EmailResultError {
     status: 0;
     notice: string;
-    data?: string;
+    data?: any;
     email: string[];
     subject: string;
 }
@@ -35,20 +35,6 @@ interface EmailResultError {
 type EmailResult = EmailResultSuccess | EmailResultError;
 
 export class EmailService {
-
-    private sesClient: AWS.SES;
-
-    constructor() {
-      // Initialize AWS SES client
-      this.sesClient = new AWS.SES({
-        credentials: {
-          accessKeyId: process.env.AWS_SES_KEY as string,
-          secretAccessKey: process.env.AWS_SES_SECRET as string,
-        },
-        region: 'ap-southeast-1',
-        apiVersion: '2010-12-01',
-      });
-    }
 
     /**
      * Send an email using AWS SES with Raw Email to support custom headers
@@ -65,51 +51,64 @@ export class EmailService {
         bccAdrs = ["tech@lakbayhub.com", "it.support@pinoyonlinebiz.com"],
     }: SendEmailOptions): Promise<EmailResult> {
         try {
-            const plaintextBody = htmlToText(html_body, {
+            // Get AWS credentials using unhash function
+            const accessKeyId = await unhash(process.env.AWS_SES_KEY!);
+            const secretAccessKey = await unhash(process.env.AWS_SES_SECRET!);
+            
+            if (!accessKeyId || !secretAccessKey) {
+                throw new Error("Missing AWS SES credentials.");
+            }
+            
+            // Create SES client with credentials
+            const sesClient = new SESClient({
+                region: "ap-southeast-1",
+                credentials: {
+                    accessKeyId,
+                    secretAccessKey,
+                },
+            });
+            
+            // Convert HTML to plain text
+            const plaintext_body = htmlToText(html_body, {
                 wordwrap: 130,
                 preserveNewlines: true
             });
-
-            // Create a new mail composer using nodemailer
-            const message = new MailComposer({
-                from: `${from_name} <${sender_email}>`,
-                to: recipient_emails.join(', '),
-                cc: ccAdrs.length > 0 ? ccAdrs.join(', ') : undefined,
-                bcc: bccAdrs.length > 0 ? bccAdrs.join(', ') : undefined,
-                replyTo: sender_email,
-                subject: subject,
-                text: plaintextBody,
-                html: html_body,
-                headers: {
-                    'List-Unsubscribe': `<mailto:${sender_email}?subject=unsubscribe-me>`
-                }
-            });
-
-            const rawMessage = await new Promise<Buffer>((resolve, reject) => {
-                message.compile().build((err, result) => {
-                    if (err) reject(err);
-                    else resolve(result);
-                });
-            });
-
-            // Create parameters for sendRawEmail
-            const params: AWS.SES.SendRawEmailRequest = {
-                RawMessage: {
-                    Data: rawMessage
+            
+            // Prepare email parameters
+            const params: SendEmailCommandInput = {
+                Destination: {
+                    ToAddresses: recipient_emails,
+                    CcAddresses: ccAdrs.length > 0 ? ccAdrs : undefined,
+                    BccAddresses: bccAdrs.length > 0 ? bccAdrs : undefined,
                 },
-                Destinations: [...recipient_emails, ...ccAdrs, ...bccAdrs],
-                Source: `${from_name} <${sender_email}>`
+                ReplyToAddresses: [sender_email],
+                Source: `${from_name} <${sender_email}>`,
+                Message: {
+                    Subject: {
+                        Charset: "UTF-8",
+                        Data: subject,
+                    },
+                    Body: {
+                        Html: {
+                            Charset: "UTF-8",
+                            Data: html_body,
+                        },
+                        Text: {
+                            Charset: "UTF-8",
+                            Data: plaintext_body,
+                        },
+                    },
+                },
             };
-
-            // Send the raw email
-            const result = await this.sesClient.sendRawEmail(params).promise();
-            const messageId = result.MessageId || '';
-
+            
+            // Send email
+            const result = await sesClient.send(new SendEmailCommand(params));
+            
             // Return success result
             return {
                 status: 1,
-                notice: `Email sent! Message ID: ${messageId}`,
-                data: messageId,
+                notice: `Email sent! Message ID: ${result.MessageId}`,
+                data: result.MessageId || '',
                 email: recipient_emails,
                 subject: subject,
                 result: result,
@@ -120,8 +119,8 @@ export class EmailService {
             // Return error result
             return {
                 status: 0,
-                notice: error.message,
-                data: error.stack,
+                notice: error.message || "Error sending email",
+                data: error,
                 email: recipient_emails,
                 subject: subject,
             };

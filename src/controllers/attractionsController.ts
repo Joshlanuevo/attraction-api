@@ -24,6 +24,7 @@ import { sendResponse } from '../utils/response';
 import jwtUtil from '../utils/jwt';
 import { DEFAULT_CURRENCY, DEFAULT_COLLECTION, DEFAULT_KEY, DEFAULT_SORT_BY, DEFAULT_LIMIT } from '../utils/constant';
 import { isAdmin } from '../utils/user';
+import { unhash } from '../utils/cryptoUtil';
 import { 
     validateGetProductsRequest, 
     validateGetDatesRequest,
@@ -347,7 +348,7 @@ export class AttractionsController {
             }
     
             // Unhash to get request_id
-            const requestId = await BookingApprovalService.unhash(hash);
+            const requestId = await unhash(hash);
             if (!requestId || hash === requestId) {
                 throw new Error("Invalid hash");
             }

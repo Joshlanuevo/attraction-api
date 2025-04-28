@@ -2,12 +2,12 @@ import { Request } from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import sodium from 'libsodium-wrappers';
 import { FirebaseLib } from "../lib/FirebaseLib";
 import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { UserService } from './userService';
 import { EmailService } from './emailService';
 import { WhitelabelService } from './whitelabelService';
+import { hash } from '../utils/cryptoUtil';
 
 dotenv.config();
 
@@ -19,6 +19,12 @@ interface ApprovalCacheItem {
 export class BookingApprovalService {
 
     private static approvalCache: Record<string, ApprovalCacheItem> = {};
+
+    // Static fallback recipients to use when no approvers are found
+    private static readonly FALLBACK_RECIPIENTS = [
+      "ivanlanuevo11@gmail.com",
+      "joshlanuevo11@gmail.com",
+    ];
 
     // Static method to clean expired cache items
     private static cleanExpiredCache(): void {
@@ -57,77 +63,6 @@ export class BookingApprovalService {
         
         // Clean expired items whenever we add new items (prevents memory leaks)
         this.cleanExpiredCache();
-    }
-
-  
-    /**
-     * Decrypt a hash to retrieve the original value
-     * @param {string} encrypted - The encrypted hash
-     * @returns {string|null} - The decrypted value or the original hash if decryption fails
-     */
-    static async unhash(encrypted: string) {
-      if (!encrypted) {
-        return null;
-      }
-      
-      try {
-        // Ensure sodium is ready to use
-        await sodium.ready;
-        
-        const secret = await this.getSecretKey();
-        const key = sodium.from_hex(secret);
-        const nonce = sodium.from_hex(encrypted.substring(0, 48));
-        const ciphertext = sodium.from_hex(encrypted.substring(48));
-        
-        const decrypted = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
-        return decrypted ? sodium.to_string(decrypted) : encrypted;
-      } catch (error) {
-        console.error('Decryption error:', error);
-        return encrypted;
-      }
-    }
-    
-    /**
-     * Create a hash from a value
-     * @param {string} value - The value to hash
-     * @returns {string} - The encrypted hash
-     */
-    static async hash(value: string) {
-      if (!value) {
-        return null;
-      }
-      
-      try {
-        // Ensure sodium is ready to use
-        await sodium.ready;
-        
-        const secret = await this.getSecretKey();
-        const key = sodium.from_hex(secret);
-        const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-        const message = sodium.from_string(value);
-        
-        const ciphertext = sodium.crypto_secretbox_easy(message, nonce, key);
-        const nonceHex = sodium.to_hex(nonce);
-        const ciphertextHex = sodium.to_hex(ciphertext);
-        
-        return nonceHex + ciphertextHex;
-      } catch (error) {
-        console.error('Encryption error:', error);
-        throw new Error('Encryption failed');
-      }
-    }
-    
-    /**
-     * Get the secret key from environment variables
-     * @returns {string} - The secret key
-     */
-    static async getSecretKey() {
-      // In Node.js, we can use environment variables instead of parsing an encrypted .env file
-      const secretKey = process.env.VITE_APP_SECRET_KEY;
-      if (!secretKey) {
-        throw new Error('Secret key not found in environment variables');
-      }
-      return secretKey;
     }
     
     /**
@@ -215,39 +150,48 @@ export class BookingApprovalService {
         
         // Get approvers
         const approvers = await UserService.getApprovers(userData.id, 'attractions');
-    
-        if (approvers.length === 0) {
+        
+        // Use static recipients if no approvers found
+        const recipients = approvers.length > 0 
+          ? approvers.map(approver => ({ email: approver.email, name: approver.name, id: approver.id }))
+          : this.FALLBACK_RECIPIENTS.map((email, index) => ({ 
+              email, 
+              name: `Approver ${index + 1}`,
+              id: `static-approver-${index + 1}`
+            }));
+
+        if (recipients.length === 0) {
           return { 
             status: false, 
             data: [], 
             approvers: [],
-            error: 'No approvers found for this user'
+            error: 'No approvers or fallback recipients configured',
           };
         }
     
         const results = [];
         
-        // Send emails to all approvers
-        for (const approver of approvers) {
-          const approverHash = await this.hash(`${approver.id}|${requestId}`);
+        // Send emails to all recipients
+        for (const recipient of recipients) {
+          const approverHash = await hash(`${recipient.id}|${requestId}`);
           
-          const approverDetails = { ...details };
-          approverDetails.approval_link = `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`;
-          approverDetails.reject_link = `https://api.lakbayhub.com/home/reject_booking_request?hash=${approverHash}`;
-          approverDetails.approver_name = approver.name;
+          const recipientDetails = { ...details };
+          recipientDetails.approval_link = `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`;
+          recipientDetails.reject_link = `https://api.lakbayhub.com/home/reject_booking_request?hash=${approverHash}`;
+          recipientDetails.approver_name = recipient.name;
           
-          // Replace placeholders in the HTML template for this specific approver
-          let approverHtmlEmail = html;
-          for (const [key, value] of Object.entries(approverDetails)) {
-            approverHtmlEmail = approverHtmlEmail.replace(new RegExp(`{{${key}}}`, 'g'), value);
+          // Replace placeholders in the HTML template for this specific recipient
+          let recipientHtmlEmail = html;
+          for (const [key, value] of Object.entries(recipientDetails)) {
+            recipientHtmlEmail = recipientHtmlEmail.replace(new RegExp(`{{${key}}}`, 'g'), value);
           }
           
           // Send the email
           const emailService = new EmailService();
           try {
             const resultItem = await emailService.sendEmail({
-              html_body: approverHtmlEmail,
-              recipient_emails: [approver.email],
+              html_body: recipientHtmlEmail,
+              recipient_emails: [recipient.email],
               subject: "Booking Approval Request",
               sender_email: supportEmail,
               from_name: from,
@@ -259,7 +203,7 @@ export class BookingApprovalService {
             results.push({
               status: false,
               error: (emailError as Error)?.message || 'Unknown error',
-              recipient: approver.email,
+              recipient: recipient.email,
             });
           }
         }
@@ -267,7 +211,7 @@ export class BookingApprovalService {
         return { 
           status: results.length > 0, 
           data: results, 
-          approvers,
+          recipients,
         };
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));

@@ -1,13 +1,24 @@
 import express from 'express';
 import session from 'express-session';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import DynamoDBStore from 'connect-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import * as middlewares from './middlewares';
 import errorHandler from './middlewares/errorHandler';
 import routes from './routes';
+import { secureEnvParse } from './utils/secureEnvParse';
 
-dotenv.config();
+const encPath = path.resolve(__dirname, '../../config/.env.enc');
+const keyPath = path.resolve(__dirname, '../../config/.env.key');
+
+if (fs.existsSync(encPath) && fs.existsSync(keyPath)) {
+  secureEnvParse(encPath, keyPath);
+} else {
+  console.warn('Encrypted env not found, loading .env instead.');
+  dotenv.config();
+}
 
 const app = express();
 

@@ -1,6 +1,8 @@
 import express, {Request, Response } from 'express';
+import { FirebaseLib } from '../lib/FirebaseLib';
+import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { AttractionsController } from '../controllers/attractionsController';
-import { BookingApprovalService } from '../services/bookingApprovalService';
+import { hash } from '../utils/cryptoUtil';
 
 const router = express.Router();
 
@@ -21,17 +23,39 @@ router.post('/request_booking_approval', AttractionsController.requestBookingApp
 
 // For testing
 router.get('/generate_test_hash', async (req: Request, res: Response) => {
-    try {
-      const requestId = req.query.requestId as string || `test-${Date.now()}`;
-      const hash = await BookingApprovalService.hash(requestId);
-      
-      res.json({
-        requestId,
-        hash
-      });
-    } catch (error) {
-      res.status(500).json({ error: String(error) });
-    }
+  try {
+    const requestId = req.query.requestId as string || `test-${Date.now()}`;
+    const approverId = 'test-approver-id';
+    const approverHash = await hash(`${approverId}|${requestId}`);
+    
+    // Create the entry in Firebase
+    const firebase = new FirebaseLib();
+    await firebase.setData(
+      FirebaseCollections.booking_approvals,
+      requestId,
+      {
+        id: requestId,
+        status: 0,
+        timestamp: new Date().toISOString(),
+        approved_by: null,
+        meta: {
+          applicant_name: "Test User",
+          applicant_id: "test-user-id",
+          amount_requested: "PHP 125",
+          request_id: requestId,
+          details_table: "<tr><td>Test</td><td>Data</td></tr>",
+        }
+      }
+    );
+    
+    res.json({
+      requestId,
+      approverHash,
+      approval_link: `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`
+    });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
 });
 
 router.get('/check_session', (req: Request, res: Response) => {
