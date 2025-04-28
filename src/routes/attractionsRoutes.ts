@@ -2,7 +2,7 @@ import express, {Request, Response } from 'express';
 import { FirebaseLib } from '../lib/FirebaseLib';
 import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { AttractionsController } from '../controllers/attractionsController';
-import { hash } from '../utils/cryptoUtil';
+import { hash, unhash } from '../utils/cryptoUtil';
 
 const router = express.Router();
 
@@ -51,26 +51,67 @@ router.get('/generate_test_hash', async (req: Request, res: Response) => {
     res.json({
       requestId,
       approverHash,
-      approval_link: `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`
+      approval_link: `http://localhost:3000/api/event_packages/approve_booking_request?hash=${approverHash}`,
     });
   } catch (error) {
     res.status(500).json({ error: String(error) });
   }
 });
 
-router.get('/check_session', (req: Request, res: Response) => {
-    if (req.session && req.session.user) {
-      res.json({
-        authenticated: true,
-        userId: req.session.user.id,
-        sessionExists: true,
-      });
-    } else {
-      res.json({
-        authenticated: false,
-        sessionExists: !!req.session,
-      });
+router.get('/approve_booking_request', async (req: Request, res: Response) => {
+  try {
+    const hash = req.query.hash as string;
+    if (!hash) {
+      throw new Error("Hash is required");
     }
+    
+    const requestId = await unhash(hash);
+    if (!requestId || hash === requestId) {
+      throw new Error("Invalid hash");
+    }
+    
+    // Get the booking request from Firebase
+    const firebase = new FirebaseLib();
+    const bookingRequest = await firebase.getData(
+      FirebaseCollections.booking_approvals,
+      requestId
+    );
+    
+    if (!bookingRequest) {
+      throw new Error("Request does not exist");
+    }
+    
+    // Update the status in Firebase
+    await firebase.setData(
+      FirebaseCollections.booking_approvals,
+      requestId,
+      {
+        ...bookingRequest,
+        status: 1,
+        timestamp: new Date().toISOString(),
+        approved_by: "test-approver"
+      }
+    );
+    
+    // Return a simple HTML response
+    const html = `
+      <html>
+        <body>
+          <h1>Booking Request Approved</h1>
+          <p>Request ID: ${requestId}</p>
+          <p>Status: Approved</p>
+        </body>
+      </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    res.status(400).json({ 
+      error: error instanceof Error ? error.message : String(error),
+      trace: error instanceof Error ? error.stack : ''
+    });
+  }
 });
 
 export default router;
