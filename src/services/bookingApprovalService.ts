@@ -20,12 +20,6 @@ export class BookingApprovalService {
 
     private static approvalCache: Record<string, ApprovalCacheItem> = {};
 
-    // Static fallback recipients to use when no approvers are found
-    private static readonly FALLBACK_RECIPIENTS = [
-      "ivanlanuevo11@gmail.com",
-      "joshlanuevo11@gmail.com",
-    ];
-
     // Static method to clean expired cache items
     private static cleanExpiredCache(): void {
       const now = Date.now();
@@ -151,38 +145,29 @@ export class BookingApprovalService {
         // Get approvers
         const approvers = await UserService.getApprovers(userData.id, 'attractions');
         
-        // Use static recipients if no approvers found
-        const recipients = approvers.length > 0 
-          ? approvers.map(approver => ({ email: approver.email, name: approver.name, id: approver.id }))
-          : this.FALLBACK_RECIPIENTS.map((email, index) => ({ 
-              email, 
-              name: `Approver ${index + 1}`,
-              id: `static-approver-${index + 1}`
-            }));
-
-        if (recipients.length === 0) {
+        if (approvers.length === 0) {
           return { 
             status: false, 
             data: [], 
             approvers: [],
-            error: 'No approvers or fallback recipients configured',
+            error: 'No approvers found for this user'
           };
         }
     
         const results = [];
         
-        // Send emails to all recipients
-        for (const recipient of recipients) {
-          const approverHash = await hash(`${recipient.id}|${requestId}`);
+        // Send emails to all approvers
+        for (const approver of approvers) {
+          const approverHash = await hash(`${approver.id}|${requestId}`);
           
-          const recipientDetails = { ...details };
-          recipientDetails.approval_link = `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`;
-          recipientDetails.reject_link = `https://api.lakbayhub.com/home/reject_booking_request?hash=${approverHash}`;
-          recipientDetails.approver_name = recipient.name;
+          const approverDetails = { ...details };
+          approverDetails.approval_link = `https://api.lakbayhub.com/home/approve_booking_request?hash=${approverHash}`;
+          approverDetails.reject_link = `https://api.lakbayhub.com/home/reject_booking_request?hash=${approverHash}`;
+          approverDetails.approver_name = approver.name;
           
           // Replace placeholders in the HTML template for this specific recipient
           let recipientHtmlEmail = html;
-          for (const [key, value] of Object.entries(recipientDetails)) {
+          for (const [key, value] of Object.entries(approverDetails)) {
             recipientHtmlEmail = recipientHtmlEmail.replace(new RegExp(`{{${key}}}`, 'g'), value);
           }
           
@@ -191,7 +176,7 @@ export class BookingApprovalService {
           try {
             const resultItem = await emailService.sendEmail({
               html_body: recipientHtmlEmail,
-              recipient_emails: [recipient.email],
+              recipient_emails: [approver.email],
               subject: "Booking Approval Request",
               sender_email: supportEmail,
               from_name: from,
@@ -203,7 +188,7 @@ export class BookingApprovalService {
             results.push({
               status: false,
               error: (emailError as Error)?.message || 'Unknown error',
-              recipient: recipient.email,
+              recipient: approver.email,
             });
           }
         }
@@ -211,7 +196,7 @@ export class BookingApprovalService {
         return { 
           status: results.length > 0, 
           data: results, 
-          recipients,
+          approvers,
         };
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
