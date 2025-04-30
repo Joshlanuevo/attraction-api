@@ -16,7 +16,7 @@ import admin from '../utils/firebase';
 dotenv.config();
 
 const db = admin.firestore();
-const ATTRACTION_AUTH_COLLECTION = "AttractionAuthTokens";
+const ATTRACTION_AUTH_COLLECTION = "attractionAuthTokens";
 const TOKEN_DOC_ID = "currentToken";
 const API_TIMEOUT = parseInt(process.env.API_TIMEOUT || '30000', 10);
 
