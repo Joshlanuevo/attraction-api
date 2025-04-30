@@ -21,7 +21,6 @@ import { BookingApprovalService } from '../services/bookingApprovalService';
 import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { TransactionTypes } from '../enums/TransactionTypes';
 import { sendResponse } from '../utils/response';
-import jwtUtil from '../utils/jwt';
 import { DEFAULT_CURRENCY, DEFAULT_COLLECTION, DEFAULT_KEY, DEFAULT_SORT_BY, DEFAULT_LIMIT } from '../utils/constant';
 import { isAdmin } from '../utils/user';
 import { unhash } from '../utils/cryptoUtil';

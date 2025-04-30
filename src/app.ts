@@ -20,6 +20,16 @@ if (fs.existsSync(encPath) && fs.existsSync(keyPath)) {
 const app = express();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Security and Logging Middlewares
+app.use(middlewares.securityMiddleware.helmetMiddleware);
+app.use(middlewares.securityMiddleware.corsMiddleware);
+app.use(middlewares.securityMiddleware.ipFilterMiddleware);
+app.use(middlewares.beforeRoutesMiddleware.injectTrackingId);
+app.use(middlewares.beforeRoutesMiddleware.requestLogger);
+app.use(middlewares.beforeRoutesMiddleware.rateLimiter);
+app.use(middlewares.afterRoutesMiddleware.responseLogger);
 
 // Routes
 app.use('/api', routes);
