@@ -31,10 +31,10 @@ export class UserService {
     }
 
     static getCurrentUserId(req: Request): string {
-        if (!req.session?.user?.id) {
+        if (!req.user?.userId) {
           throw new Error('User session not found or invalid');
         }
-        return req.session.user.id;
+        return req.user.userId;
     }
 
     static async getUserBalanceData(userId: string): Promise<UserBalance | null> {
