@@ -14,13 +14,6 @@ export class AuthController {
                 return sendResponse(req, res, false, 401, "Invalid credentials");
             }
 
-            req.session.user = {
-                id: user.id,
-                agentId: user?.agency_id || "",
-                user_name: user.username || "",
-                currency: user.currency || "",
-            };
-
             const token = AuthService.generateAuthToken(user);
             return sendResponse(req, res, true, 200, "User Authenticated", { token });
         } catch (error) {

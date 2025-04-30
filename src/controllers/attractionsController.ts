@@ -165,8 +165,10 @@ export class AttractionsController {
 
     static async createTransaction(req: Request, res: Response): Promise<void> {
         try {
-            // Get user data from session
-            const userId = req.session!.user!.id;
+            // Get user data
+            const userId = req.user?.userId;
+            if (!userId) throw new Error("User not authenticated. Please log in again.");
+
             const userData = await UserService.getUser(userId);
             
             if (!userData) {
@@ -276,7 +278,7 @@ export class AttractionsController {
 
         try {
             // Check if user is admin
-            const userId = req.session?.user?.id;
+            const userId = req.user?.userId;
             if (!userId) throw new Error("User not authenticated. Please log in again.");
             
             const user = await UserService.getUser(userId);
@@ -353,8 +355,10 @@ export class AttractionsController {
                 throw new Error("Invalid hash");
             }
             
-            // Get user data from session
-            const userId = req.session!.user!.id;
+            // Get user data
+            const userId = req.user?.userId;
+            if (!userId) throw new Error("User not authenticated. Please log in again.");
+
             const userData = await UserService.getUser(userId);
             
             if (!userData) {
@@ -427,32 +431,7 @@ export class AttractionsController {
  * Helper function to extract user currency from various sources
  */
 async function getUserCurrency(req: Request): Promise<string | undefined> {
-    // First try to get user from session
-    const userId = req.session?.user?.id;
-    if (userId) {
-        const user = await UserService.getUser(userId);
-        if (user?.currency) {
-            return user.currency;
-        }
-    }
-    
-    // If no session, try to get from JWT token in Authorization header
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-        try {
-            const userToken = authHeader.split(' ')[1];
-            const decodedToken = jwtUtil.verifyToken(userToken) as any;
-            
-            if (decodedToken?.data?.currency) {
-                return decodedToken.data.currency;
-            }
-        } catch (tokenError) {
-            console.error("Error verifying JWT token:", tokenError);
-            // Continue without currency instead of failing
-        }
-    }
-    
-    return undefined;
+    return req.user?.currency;
 }
   
 async function calculateBookingTotal(request: GlobalTixCreateTransactionRequest): Promise<number> {
