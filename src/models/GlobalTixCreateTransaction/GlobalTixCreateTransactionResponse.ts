@@ -18,6 +18,15 @@ export class GlobalTixCreateTransactionResponse {
         this.data = new ResponseData(currency, {});
       }
     }
+
+    toPlainObject() {
+      return {
+        success: this.success,
+        size: this.size,
+        error: this.error,
+        data: this.data?.toPlainObject(),
+      };
+  }
 }
   
 export class ResponseData {
@@ -58,6 +67,22 @@ export class ResponseData {
         );
       }
     }
+
+    toPlainObject() {
+      return {
+        time: this.time,
+        currency: this.currency,
+        amount: this.amount,
+        reference_number: this.reference_number,
+        alternateEmail: this.alternateEmail,
+        email: this.email,
+        customerName: this.customerName,
+        paymentStatus: this.paymentStatus?.toPlainObject?.(),
+        eTicketUrl: this.eTicketUrl,
+        otherInfo: this.otherInfo?.toPlainObject?.(),
+        tickets: this.tickets?.map(ticket => ticket.toPlainObject?.())
+      };
+    }
 }
   
 export class PaymentStatus {
@@ -65,6 +90,12 @@ export class PaymentStatus {
     
     constructor(data: any = {}) {
       Object.assign(this, data);
+    }
+
+    toPlainObject() {
+      return {
+        name: this.name,
+      };
     }
 }
   
@@ -125,6 +156,33 @@ export class Ticket {
         this.transaction = new Transaction(data.transaction);
       }
     }
+
+    toPlainObject() {
+      return {
+        id: this.id,
+        code: this.code,
+        name: this.name,
+        variation: this.variation?.toPlainObject?.(),
+        product: this.product?.toPlainObject?.(),
+        status: this.status?.toPlainObject?.(),
+        ticketFormat: this.ticketFormat,
+        redeemed: this.redeemed,
+        termsAndConditions: this.termsAndConditions,
+        reseller: this.reseller,
+        description: this.description,
+        isOpenDated: this.isOpenDated,
+        attractionTitle: this.attractionTitle,
+        location: this.location,
+        postalCode: this.postalCode,
+        attractionImagePath: this.attractionImagePath,
+        sellingPrice: this.sellingPrice,
+        paidAmount: this.paidAmount,
+        checkoutPrice: this.checkoutPrice,
+        transaction: this.transaction?.toPlainObject?.(),
+        visitDate: this.visitDate,
+        currency: this.currency
+      };
+    }
 }
   
 export class Variation {
@@ -132,6 +190,12 @@ export class Variation {
     
     constructor(data: any = {}) {
       Object.assign(this, data);
+    }
+
+    toPlainObject() {
+      return {
+        name: this.name,
+      };
     }
 }
   
@@ -142,6 +206,13 @@ export class Product {
     constructor(data: any = {}) {
       Object.assign(this, data);
     }
+
+    toPlainObject() {
+      return {
+        id: this.id,
+        sku: this.sku,
+      };
+    }
 }
   
 export class Status {
@@ -149,6 +220,12 @@ export class Status {
     
     constructor(data: any = {}) {
       Object.assign(this, data);
+    }
+
+    toPlainObject() {
+      return {
+        name: this.name,
+      };
     }
 }
   
@@ -160,5 +237,14 @@ export class Transaction {
     
     constructor(data: any = {}) {
       Object.assign(this, data);
+    }
+
+    toPlainObject() {
+      return {
+        id: this.id,
+        referenceNumber: this.referenceNumber,
+        time: this.time,
+        paymentMethod: this.paymentMethod,
+      };
     }
 }

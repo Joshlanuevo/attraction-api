@@ -58,15 +58,73 @@ export class GlobalTixCreateTransactionRequest {
         }
       }
     }
-  }
-  
-  export class OtherInfo {
-    partnerReference?: string;
-    
-    constructor(data: any = {}) {
-      Object.assign(this, data);
+
+    // Add toPlainObject method to convert to a plain JavaScript object
+    toPlainObject() {
+      return {
+        newModel: this.newModel,
+        alternateEmail: this.alternateEmail,
+        creditCardCurrencyId: this.creditCardCurrencyId,
+        customerName: this.customerName,
+        email: this.email,
+        groupName: this.groupName,
+        groupBooking: this.groupBooking,
+        groupNoOfMember: this.groupNoOfMember,
+        isGrabPayPurchase: this.isGrabPayPurchase,
+        isInstantRedeemAll: this.isInstantRedeemAll,
+        isSingleCodeForGroup: this.isSingleCodeForGroup,
+        mobileNumber: this.mobileNumber,
+        mobilePrefix: this.mobilePrefix,
+        otherInfo: this.otherInfo?.toPlainObject?.(),
+        passportNumber: this.passportNumber,
+        paymentMethod: this.paymentMethod,
+        remarks: this.remarks,
+        ticketTypes: this.ticketTypes.map(ticketType => this.ticketTypeToPlainObject(ticketType)),
+        promoCodeId: this.promoCodeId,
+        promotionType: this.promotionType,
+        currency: this.currency
+      };
     }
+
+    // Helper method to convert TicketType objects to plain objects
+    private ticketTypeToPlainObject(ticketType: TicketType) {
+      const result: any = {
+        fromResellerId: ticketType.fromResellerId,
+        id: ticketType.id,
+        quantity: ticketType.quantity,
+        sellingPrice: ticketType.sellingPrice,
+        visitDate: ticketType.visitDate,
+        index: ticketType.index,
+        event_id: ticketType.event_id,
+        packageItems: ticketType.packageItems,
+        visitDateSettings: ticketType.visitDateSettings
+      };
+
+      if (ticketType.questionList && Array.isArray(ticketType.questionList)) {
+        result.questionList = ticketType.questionList.map(item => ({
+          id: item.id,
+          answer: item.answer,
+          ticketIndex: item.ticketIndex
+        }));
+      }
+
+      return result;
+    }
+}
+  
+export class OtherInfo {
+  partnerReference?: string;
+  
+  constructor(data: any = {}) {
+    Object.assign(this, data);
   }
+
+  toPlainObject() {
+    return {
+      partnerReference: this.partnerReference,
+    };
+  }
+}
   
 export class TicketType {
     fromResellerId?: number;

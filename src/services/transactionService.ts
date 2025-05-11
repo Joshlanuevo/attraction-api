@@ -16,6 +16,7 @@ interface TransactionPayload {
     userName: string;
     meta?: Record<string, any>;
     agentId?: string;
+    transactionId?: string;
 }
 
 
@@ -28,6 +29,7 @@ export async function commitTransaction({
     userName,
     meta = {},
     agentId,
+    transactionId,
 }: TransactionPayload): Promise<void> {
     const now = new Date().toISOString();
   
@@ -40,7 +42,7 @@ export async function commitTransaction({
       currency,
       type,
       reference_no: uuidv4().slice(0, 8),
-      transaction_id: uuidv4(),
+      transaction_id: transactionId || uuidv4(),
       timestamp: now,
       credit_type: 'wallet',
       meta,
@@ -105,7 +107,7 @@ const currencyRateCache = {
     }
 };
   
-/**
+/*
  * Converts transaction response to requested currency
  * @param response The transaction response
  * @param targetCurrency The target currency

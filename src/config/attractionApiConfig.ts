@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const API_BASE_URIS = {
-    development: 'https://uat-api.globaltix.com/api',
+    development: 'https://stg-api.globaltix.com/api',
     production: 'https://sg-api.globaltix.com/api',
 };
 

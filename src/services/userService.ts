@@ -8,6 +8,7 @@ import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { AccessControlService } from './accessControlService';
 import { AgencyService } from './agencyService';
 import { checkSufficientOnHoldBalance } from './userFundsService';
+import { isAdmin } from '../utils/user';
 import { isFullArray } from '../utils/helpers';
 import admin from "../utils/firebase";
 
@@ -18,7 +19,17 @@ const agencyService = new AgencyService();
 export class UserService {
     private static async getUserInternal(userId: string): Promise<UserModel | null> {
         const userDoc = await db.collection(FirebaseCollections.users).doc(userId).get();
-        return userDoc.exists ? (userDoc.data() as UserModel) : null;
+        if (!userDoc.exists) return null;
+
+        const userData = userDoc.data() as UserModel;
+        return {
+            ...userData,
+            userId: userDoc.id, // attach the document ID explicitly
+            toJSON: () => ({
+                ...userData,
+                userId: userDoc.id,
+            }),
+        };
     }
 
     static async getUser(userId: string): Promise<UserModel | null> {
@@ -40,29 +51,32 @@ export class UserService {
     static async getUserBalanceData(userId: string): Promise<UserBalance | null> {
         try {
             const user = await this.getUserInternal(userId);
-            if (!user || user.access_level === UserTypes.ADMIN) {
-                return null;
-            }
-    
+            if (!user) return null;
+
             const walletId = await this.getEffectiveUserWalletId(user);
-            const balanceDoc = await db.collection(FirebaseCollections.user_balance).doc(walletId).get();
-            
-            if (!balanceDoc.exists) {
-                return {
-                    userId: walletId,
-                    total: 0,
-                    count: 0,
-                    last5: [],
-                    currency: 'PHP',
-                } as UserBalance;
-            }
-    
-            return balanceDoc.data() as UserBalance;    
+            const walletUser = await this.getUserInternal(walletId);
+            if (!walletUser) return null;
+
+            const balanceDoc = await db
+                .collection(FirebaseCollections.user_balance)
+                .doc(walletId)
+                .get();
+
+            const data = balanceDoc.data() as UserBalance | undefined;
+            const currency = walletUser.currency ?? 'PHP';
+            const totalAmount = typeof data?.total === 'object' ? data.total.amount : data?.total ?? 0;
+
+            return {
+                userId: walletId,
+                total: { amount: totalAmount, currency },
+                count: data?.count ?? 0,
+                last5: data?.last5 ?? [],
+                currency,
+            };
         } catch (error) {
-            console.error('Error getting user balance data:', error);
             throw new Error('Failed to retrieve user balance data');
         }
-    };
+    }
 
     private static async getEffectiveUserWalletId(user: UserModel): Promise<string> {
         try {
@@ -78,25 +92,21 @@ export class UserService {
                 if (userIdLower.includes('admin') || agencyIdLower.includes('admin')) {
                     return user.id;
                 }
-    
                 if (user.id === user.agency_id) {
                     const parentAgency = await agencyService.getAgency(user.agency_id);
                     if (!parentAgency || !parentAgency.masteragent_id) {
                         throw new Error("Invalid parent partner");
                     }
-    
                     const parentUser = await this.getUserInternal(parentAgency.masteragent_id);
                     if (!parentUser) {
                         throw new Error("Invalid parent company");
                     }
-    
                     return parentUser.id;
                 } else {
                     const parentUser = await this.getUserInternal(user.userId);
                     if (!parentUser) {
                         throw new Error("Invalid parent company");
                     }
-    
                     return parentUser.id;
                 }
             }
@@ -108,6 +118,7 @@ export class UserService {
         }
     }
 
+
     /**
      * Validates if user has sufficient balance for transaction
      * @param userId User ID
@@ -115,42 +126,50 @@ export class UserService {
      * @param currency User currency
      */
     static async validateUserBalance(
-    userId: string,
-    amount: number,
-    currency: string,
+        userId: string,
+        amount: number,
+        currency: string,
     ): Promise<void> {
-    const userBalance = await UserService.getUserBalanceData(userId);
+        const user = await UserService.getUser(userId);
         
-    if (!userBalance) {
-        throw new Error("Unable to retrieve balance information");
-    }
+        // Skip balance validation for admin users
+        if (isAdmin(user)) {
+            console.log("Admin user - skipping balance validation");
+            return;
+        }
+        
+        const userBalance = await UserService.getUserBalanceData(userId);
+            
+        if (!userBalance) {
+            throw new Error("Unable to retrieve balance information");
+        }
 
-    const nextBalance = userBalance.total - amount;
+        const nextBalance = userBalance.total.amount - amount;
 
-    // Log balance information
-    console.log({
-        message: 'Attraction balance check',
-        balance: userBalance.total,
-        total: amount,
-        outcome: nextBalance
-    });
+        // Log balance information
+        console.log({
+            message: 'Attraction balance check',
+            balance: userBalance.total,
+            total: amount,
+            outcome: nextBalance
+        });
 
-    // Check if user has enough balance
-    if (nextBalance < 0) {
-        throw new Error("User does not have enough balance");
-    }
+        // Check if user has enough balance
+        if (nextBalance < 0) {
+            throw new Error("User does not have enough balance");
+        }
 
-    // Check if user has enough on-hold balance
-    const hasSufficientBalance = await checkSufficientOnHoldBalance(
-        userId,
-        userBalance.total,
-        amount,
-        currency,
-    );
-
-    if (!hasSufficientBalance) {
-        throw new Error("Not enough credits for this transaction due to funds on hold");
-    }
+        // Check if the user has enough balance after deducting funds on hold
+        const result = await checkSufficientOnHoldBalance(
+            userId,
+            { amount: nextBalance, currency },
+            true
+        );
+        
+        // This will handle the error state according to checkSufficientOnHoldBalance's result
+        if (result !== true) {
+            throw new Error("Not enough credits for this transaction due to funds on hold");
+        }
     }
 
     static async getParentCompanyDetails(userId?: string | UserModel | null): Promise<Record<string, string>> {

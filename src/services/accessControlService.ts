@@ -58,7 +58,7 @@ export class AccessControlService {
       }
     }
 
-      /**
+  /**
    * Validates booking approval credentials
    * @param type Transaction type
    * @param approvalId Approval ID
@@ -67,11 +67,15 @@ export class AccessControlService {
   static async validateBookingApprovalCredentials(
     type: TransactionTypes,
     approvalId: string | undefined,
-    userData: any
+    userData: any,
   ): Promise<void> {
+    console.log("Approval ID:", approvalId);
+    console.log("Transaction Type:", type);
+    console.log("User Access Control Info:", userData);
     if (!approvalId) {
       // If no approval ID provided, check if it's required
       const isRequired = await AccessControlService.isTicketApprovalRequired(type, userData);
+      console.log("Is approval required?", isRequired);
       if (isRequired) {
         throw new Error("Approval ID is required for users with access control where ticket approval is required");
       }

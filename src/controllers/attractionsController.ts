@@ -14,6 +14,7 @@ import { getProductChanges } from '../services/attractionGetChanges';
 import { AccessControlService } from '../services/accessControlService';
 import { executeCreateTransaction } from '../services/attractionCreateTransaction';
 import { commitTransaction, getTransactionData, convertResponseToCurrency } from '../services/transactionService';
+import { checkSufficientOnHoldBalance } from '../services/userFundsService';
 import { cancelTransaction } from '../services/attractionCancelTransaction';
 import { hydrateTransactions } from '../services/transactionHydrationService';
 import { getBalance } from '../services/attractionGetBalance';
@@ -164,91 +165,90 @@ export class AttractionsController {
 
     static async createTransaction(req: Request, res: Response): Promise<void> {
         try {
-            // Get user data
+            const token = await AuthService.getToken();
+
             const userId = req.user?.userId;
             if (!userId) throw new Error("User not authenticated. Please log in again.");
 
             const userData = await UserService.getUser(userId);
-            
-            if (!userData) {
-                throw new Error("User not authenticated");
-            }
-            
-            // Create and validate request
+            if (!userData) throw new Error("User not authenticated");
+
             const request = new GlobalTixCreateTransactionRequest(userData.currency, req.body);
             request.validate();
-            
-            // Validate booking approval if needed
+
             const approvalId = req.body.approval_id;
             await AccessControlService.validateBookingApprovalCredentials(
                 TransactionTypes.package,
                 approvalId,
                 userData,
             );
-            
-            // Check user balance if not admin
-            if (!isAdmin(userData)) {
-                const total = await calculateBookingTotal(request);
-                
-                await UserService.validateUserBalance(
-                    userData.id, 
-                    total, 
-                    userData.currency || DEFAULT_CURRENCY,
-                );
-            }
-            
-            // Get token for API call
-            const token = await AuthService.getToken();
-            
-            // Create transaction
-            const responseModel = await executeCreateTransaction(request, token);
-            
-            if (!responseModel.success) {
-                throw new Error("Failed to create ticket transaction");
-            }
-            
-            // Get confirmation number from response
-            const confirmationNumber = responseModel.data.reference_number;
-            
-            if (!confirmationNumber) {
-                throw new Error("Transaction failed to commit");
-            }
-            
-            // Commit transaction and get transaction data
+
             const total = await calculateBookingTotal(request);
 
-            await commitTransaction({
+            if (!isAdmin(userData)) {
+                const userBalance = await UserService.getUserBalanceData(userData.userId);
+                if (!userBalance) throw new Error("Unable to retrieve balance information");
+
+                const nextBalance = userBalance.total.amount - total;
+                if (nextBalance < 0) {
+                    return sendResponse(req, res, false, 402, "User does not have enough balance", {
+                        error: "User does not have enough balance"
+                    });
+                }
+
+                const onHoldCheck = await checkSufficientOnHoldBalance(
+                    userData.userId,
+                    { amount: nextBalance, currency: userData.currency || DEFAULT_CURRENCY },
+                    true
+                );
+
+                if (onHoldCheck !== true) {
+                    const code = typeof onHoldCheck === 'object' && 'code' in onHoldCheck ? onHoldCheck.code : 402;
+                    const error = typeof onHoldCheck === 'object' && 'error' in onHoldCheck ? onHoldCheck.error : "Unknown error";
+                    return sendResponse(req, res, false, code, error, { error });
+                }
+            }
+
+            const responseModel = await executeCreateTransaction(request, token);
+            const confirmationNumber = responseModel.data.reference_number;
+
+            if (!confirmationNumber) throw new Error("Transaction failed to commit");
+
+            const transactionPayload = {
                 userId: userData.id,
+                transactionId: confirmationNumber,
                 amount: total,
                 currency: userData.currency || DEFAULT_CURRENCY,
                 type: TransactionTypes.attractions,
                 createdBy: userData.id,
                 userName: `${userData.first_name} ${userData.last_name}`,
                 meta: {
-                    response: responseModel,
-                    request: request,
+                    response: cleanUndefinedFields(responseModel.toPlainObject()),
+                    request: cleanUndefinedFields(request.toPlainObject()),
                 },
                 agentId: userData.agency_id || userData.id,
-            });
-            
+            };
+
+            await commitTransaction(transactionPayload);
+
             const transactionData = await getTransactionData(confirmationNumber);
-            
-            // Convert response to user's currency
-            const responseInUserCurrency = await  convertResponseToCurrency(
+            const responseInUserCurrency = await convertResponseToCurrency(
                 responseModel,
                 userData.currency || DEFAULT_CURRENCY,
             );
-            
-            // Prepare output
-            const output = responseInUserCurrency;
-            output.transaction = transactionData ? [transactionData] : [];
-            
-            // Send response
+
+            const output = {
+                ...responseInUserCurrency,
+                transaction: transactionData ? [transactionData] : [],
+            };
+
             sendResponse(req, res, true, 200, "Transaction created successfully", output);
+
         } catch (error) {
-            const trackingId = (Array.isArray(req.headers["x-correlation-id"])
-                ? req.headers["x-correlation-id"][0]
-                : req.headers["x-correlation-id"]) ?? '';
+            const trackingId = Array.isArray(req.headers['x-correlation-id'])
+            ? req.headers['x-correlation-id'][0]
+            : req.headers['x-correlation-id'] ?? '';
+
             handleErrorResponse(req, res, error, trackingId, 'Create Attraction Transaction');
         }
     }
@@ -446,4 +446,18 @@ async function calculateBookingTotal(request: GlobalTixCreateTransactionRequest)
     }
     
     return total;
+}
+
+function cleanUndefinedFields(obj: any): any {
+    if (Array.isArray(obj)) {
+        return obj.map(cleanUndefinedFields);
+    } else if (obj && typeof obj === 'object') {
+        return Object.entries(obj).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key] = cleanUndefinedFields(value);
+            }
+            return acc;
+        }, {} as Record<string, any>);
+    }
+    return obj;
 }
