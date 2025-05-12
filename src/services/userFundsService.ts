@@ -16,11 +16,8 @@ const db = admin.firestore();
 async function getUserFundsOnHold(
     userId: string,
     currency: string,
-    trackingId: string = 'N/A'
 ): Promise<number> {
-    try {
-        console.log(`[getUserFundsOnHold] TrackingID: ${trackingId} - Fetching on-hold funds for user ${userId} in ${currency}`);
-        
+    try {        
         // Query funds on hold from the database - match PHP implementation fields
         const fundsOnHoldSnapshot = await db
             .collection(FirebaseCollections.user_funds_on_hold)
@@ -68,14 +65,11 @@ export async function checkSufficientOnHoldBalance(
     nextBalance: { amount: number, currency: string },
     isExitOnError: boolean = true
 ): Promise<boolean | Record<string, any>> {
-    const trackingId = 'N/A'; // You might want to add proper tracking ID here
-    
-    console.log(`[checkSufficientOnHoldBalance] TrackingID: ${trackingId} - Checking balance for user ${userId}`);
     console.log(`[checkSufficientOnHoldBalance] Next Balance: ${nextBalance.amount}, Currency: ${nextBalance.currency}`);
     
     try {
         // Get on-hold funds - exactly matching PHP implementation
-        const fundsOnHold = await getUserFundsOnHold(userId, nextBalance.currency, trackingId);
+        const fundsOnHold = await getUserFundsOnHold(userId, nextBalance.currency);
         
         // Check if there are funds on hold
         if (fundsOnHold > 0) {
@@ -94,7 +88,7 @@ export async function checkSufficientOnHoldBalance(
                     return {
                         error: `Not enough credits for this transaction because ${fundsOnHold} ${nextBalance.currency} is still on hold.`,
                         status: false,
-                        code: 402
+                        code: 402,
                     };
                 }
                 
@@ -112,7 +106,7 @@ export async function checkSufficientOnHoldBalance(
             return {
                 error: "Error checking balance availability",
                 status: false,
-                code: 500
+                code: 500,
             };
         }
         

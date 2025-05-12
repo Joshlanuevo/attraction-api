@@ -199,7 +199,7 @@ export class AttractionsController {
                 const onHoldCheck = await checkSufficientOnHoldBalance(
                     userData.userId,
                     { amount: nextBalance, currency: userData.currency || DEFAULT_CURRENCY },
-                    true
+                    true,
                 );
 
                 if (onHoldCheck !== true) {
@@ -373,11 +373,34 @@ export class AttractionsController {
             
             // Check user balance if not admin
             if (!isAdmin(userData)) {
-                await UserService.validateUserBalance(
-                    userData.id, 
-                    total, 
-                    userData.currency || DEFAULT_CURRENCY,
+                const userBalance = await UserService.getUserBalanceData(userData.userId);
+                if (!userBalance) throw new Error("Unable to retrieve balance information");
+
+                const nextBalance = userBalance.total.amount - total;
+
+                console.log("Balance Check Log:", {
+                    balance: userBalance.total.amount,
+                    totalToDeduct: total,
+                    resultingBalance: nextBalance,
+                });
+
+                if (nextBalance < 0) {
+                    return sendResponse(req, res, false, 402, "User does not have enough balance", {
+                        error: "User does not have enough balance"
+                    });
+                }
+
+                const onHoldCheck = await checkSufficientOnHoldBalance(
+                    userData.userId,
+                    { amount: nextBalance, currency: userData.currency || DEFAULT_CURRENCY },
+                    true
                 );
+
+                if (onHoldCheck !== true) {
+                    const code = typeof onHoldCheck === 'object' && 'code' in onHoldCheck ? onHoldCheck.code : 402;
+                    const error = typeof onHoldCheck === 'object' && 'error' in onHoldCheck ? onHoldCheck.error : "Unknown error";
+                    return sendResponse(req, res, false, code, error, { error });
+                }
             }
             
             // Count tickets and get ticket names

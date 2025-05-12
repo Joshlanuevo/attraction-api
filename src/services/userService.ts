@@ -7,8 +7,6 @@ import { UserTypes } from '../enums/UserTypes';
 import { FirebaseCollections } from '../enums/FirebaseCollections';
 import { AccessControlService } from './accessControlService';
 import { AgencyService } from './agencyService';
-import { checkSufficientOnHoldBalance } from './userFundsService';
-import { isAdmin } from '../utils/user';
 import { isFullArray } from '../utils/helpers';
 import admin from "../utils/firebase";
 
@@ -115,60 +113,6 @@ export class UserService {
         } catch (error) {
             console.error('Error resolving wallet ID:', error);
             throw new Error('Failed to resolve wallet ID');
-        }
-    }
-
-
-    /**
-     * Validates if user has sufficient balance for transaction
-     * @param userId User ID
-     * @param amount Transaction amount
-     * @param currency User currency
-     */
-    static async validateUserBalance(
-        userId: string,
-        amount: number,
-        currency: string,
-    ): Promise<void> {
-        const user = await UserService.getUser(userId);
-        
-        // Skip balance validation for admin users
-        if (isAdmin(user)) {
-            console.log("Admin user - skipping balance validation");
-            return;
-        }
-        
-        const userBalance = await UserService.getUserBalanceData(userId);
-            
-        if (!userBalance) {
-            throw new Error("Unable to retrieve balance information");
-        }
-
-        const nextBalance = userBalance.total.amount - amount;
-
-        // Log balance information
-        console.log({
-            message: 'Attraction balance check',
-            balance: userBalance.total,
-            total: amount,
-            outcome: nextBalance
-        });
-
-        // Check if user has enough balance
-        if (nextBalance < 0) {
-            throw new Error("User does not have enough balance");
-        }
-
-        // Check if the user has enough balance after deducting funds on hold
-        const result = await checkSufficientOnHoldBalance(
-            userId,
-            { amount: nextBalance, currency },
-            true
-        );
-        
-        // This will handle the error state according to checkSufficientOnHoldBalance's result
-        if (result !== true) {
-            throw new Error("Not enough credits for this transaction due to funds on hold");
         }
     }
 
